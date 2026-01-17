@@ -1,0 +1,17 @@
+{
+  "name": "com.kelo.kino.motion",
+  "version": "1.0.0",
+  "displayName": "KinoMotion (Modernized)",
+  "description": "Modernized motion blur post-processing effect for Unity.",
+  "unity": "2019.4",
+  "author": {
+    "name": "kelo221",
+    "url": "https://github.com/kelo221"
+  },
+  "keywords": [
+    "post-processing",
+    "motion-blur",
+    "kino"
+  ],
+  "license": "MIT"
+}
