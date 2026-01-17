@@ -107,6 +107,15 @@ namespace Kino
         [SerializeField, Tooltip("Enable debug messages in console")]
         bool _debugLogging = false;
 
+        /// Filter out camera motion, only blur moving objects
+        public bool filterCameraMotion {
+            get { return _filterCameraMotion; }
+            set { _filterCameraMotion = value; }
+        }
+
+        [SerializeField, Tooltip("Filter out camera motion - only objects will blur, not camera movement")]
+        bool _filterCameraMotion = false;
+
         #endregion
 
         #region Private fields
@@ -260,6 +269,13 @@ namespace Kino
             var desc = source.descriptor;
             desc.graphicsFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.B10G11R11_UFloatPack32;
             desc.enableRandomWrite = _supportsAsyncCompute;
+
+            // Set camera filtering parameters
+            var cam = GetComponent<Camera>();
+            var vp = cam.projectionMatrix * cam.worldToCameraMatrix;
+            var invVP = vp.inverse;
+            var prevVP = cam.previousViewProjectionMatrix;
+            _reconstructionFilter.SetCameraFilter(_filterCameraMotion, invVP, prevVP);
 
             // --- ASYNC COMPUTE PATH (Integrated) ---
             if (_supportsAsyncCompute && _shutterAngle > 0)

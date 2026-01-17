@@ -46,6 +46,7 @@ namespace Kino
         SerializedProperty _reconstructionCS;
         SerializedProperty _shaderVariants;
         SerializedProperty _debugLogging;
+        SerializedProperty _filterCameraMotion;
 
         [SerializeField] Texture2D _blendingIcon;
 
@@ -60,6 +61,7 @@ namespace Kino
             _reconstructionCS = serializedObject.FindProperty("_reconstructionCS");
             _shaderVariants = serializedObject.FindProperty("_shaderVariants");
             _debugLogging = serializedObject.FindProperty("_debugLogging");
+            _filterCameraMotion = serializedObject.FindProperty("_filterCameraMotion");
         }
 
         public override void OnInspectorGUI()
@@ -76,6 +78,7 @@ namespace Kino
 
             EditorGUILayout.PropertyField(_shutterAngle);
             EditorGUILayout.PropertyField(_sampleCount);
+            EditorGUILayout.PropertyField(_filterCameraMotion, new GUIContent("Filter Camera Motion", "Only blur moving objects, not camera movement"));
 
             EditorGUILayout.Space();
 

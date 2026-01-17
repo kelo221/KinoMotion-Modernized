@@ -66,6 +66,11 @@ float _RcpMaxBlurRadius;
 // Filter parameters/coefficients
 half _LoopCount;
 
+// Camera motion filtering
+float _FilterCameraMotion;
+float4x4 _InvVP;
+float4x4 _PrevVP;
+
 // History buffer for frame blending
 sampler2D _History1LumaTex;
 sampler2D _History2LumaTex;

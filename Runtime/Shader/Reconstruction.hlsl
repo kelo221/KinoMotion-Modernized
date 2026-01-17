@@ -52,8 +52,36 @@ float2 JitterTile(float2 uv)
 // Velocity sampling function
 half3 SampleVelocity(float2 uv)
 {
+    // 1. Get the total velocity (Camera + Object) from packed texture
     half3 v = tex2Dlod(_VelocityTex, float4(uv, 0, 0)).xyz;
-    return half3((v.xy * 2 - 1) * _MaxBlurRadius, v.z);
+    float2 totalVelocity = (v.xy * 2 - 1) * _MaxBlurRadius;
+
+    // 2. Filter out camera motion if enabled
+    if (_FilterCameraMotion > 0.5)
+    {
+        // Get depth at the current pixel
+        float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
+        
+        // Reconstruct clip-space position from UV and depth
+        float4 clipPos = float4(uv.x * 2 - 1, (1 - uv.y) * 2 - 1, depth, 1);
+        
+        // Transform to world space
+        float4 worldPos = mul(_InvVP, clipPos);
+        worldPos /= worldPos.w;
+        
+        // Project world position using the PREVIOUS camera matrix
+        float4 prevClipPos = mul(_PrevVP, worldPos);
+        float2 prevNDC = prevClipPos.xy / prevClipPos.w;
+        float2 prevUV = float2(prevNDC.x * 0.5 + 0.5, 0.5 - prevNDC.y * 0.5);
+        
+        // Camera-induced velocity is the difference in UVs (in pixels)
+        float2 cameraVelocity = (uv - prevUV) * _ScreenParams.xy;
+        
+        // Subtract camera velocity to get Per-Object only
+        totalVelocity -= cameraVelocity;
+    }
+
+    return half3(totalVelocity, v.z);
 }
 
 // Reconstruction fragment shader
