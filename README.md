@@ -2,8 +2,8 @@
 
 **KinoMotion** is a high-performance motion blur post-processing effect for the **Unity Built-in Render Pipeline**. This version is a modernized fork of [Keijiro Takahashi's original KinoMotion](https://github.com/keijiro/KinoMotion), updated for professional workflows, Unity 6 support, and modern graphics APIs.
 
-![gif](https://i.imgur.com/UkJvWnc.gif)
-![gif](https://i.imgur.com/tJioLuY.gif)
+<img width="800" height="450" alt="ezgif-2d0dea83ab0c35b3" src="https://github.com/user-attachments/assets/c182819e-8f6e-4eae-937b-c505020df7f7" />
+
 
 ## What's Modernized?
 This fork has been refactored to support professional project standards and the latest Unity engine releases:
