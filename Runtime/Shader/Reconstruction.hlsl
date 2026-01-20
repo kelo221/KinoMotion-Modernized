@@ -59,25 +59,26 @@ half3 SampleVelocity(float2 uv)
     // 2. Filter out camera motion if enabled
     if (_FilterCameraMotion > 0.5)
     {
-        // Get depth at the current pixel
-        float depth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
+        // Sample raw depth and convert to linear eye depth (handles reversed-Z automatically)
+        float rawDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
+        float linearDepth = LinearEyeDepth(rawDepth);
         
-        // Reconstruct clip-space position from UV and depth
-        float4 clipPos = float4(uv.x * 2 - 1, (1 - uv.y) * 2 - 1, depth, 1);
+        // Reconstruct view-space position using inverse projection
+        float2 ndc = uv * 2.0 - 1.0;
+        float4 viewPos = mul(_CameraInvProj, float4(ndc, rawDepth, 1.0));
+        viewPos.xyz /= viewPos.w;
         
-        // Transform to world space
-        float4 worldPos = mul(_InvVP, clipPos);
-        worldPos /= worldPos.w;
+        // Transform to world space using inverse view-projection
+        float4 worldPos = mul(_InvVP, float4(ndc, rawDepth, 1.0));
+        worldPos.xyz /= worldPos.w;
         
-        // Project world position using the PREVIOUS camera matrix
+        // Project using previous frame's VP matrix
         float4 prevClipPos = mul(_PrevVP, worldPos);
         float2 prevNDC = prevClipPos.xy / prevClipPos.w;
-        float2 prevUV = float2(prevNDC.x * 0.5 + 0.5, 0.5 - prevNDC.y * 0.5);
+        float2 prevUV = prevNDC * 0.5 + 0.5;
         
-        // Camera-induced velocity is the difference in UVs (in pixels)
+        // Camera-induced velocity in pixels
         float2 cameraVelocity = (uv - prevUV) * _ScreenParams.xy;
-        
-        // Subtract camera velocity to get Per-Object only
         totalVelocity -= cameraVelocity;
     }
 
@@ -144,8 +145,12 @@ half4 frag_Reconstruction(v2f_multitex i) : SV_Target
         // Velocity/Depth sample
         const half3 vd = SampleVelocity(uv1);
 
-        // Background/Foreground separation
+        // Background/Foreground separation (handle reversed-Z)
+#if UNITY_REVERSED_Z
+        const half fg = saturate((vd.z - vd_p.z) * 20 * rcp_d_p);
+#else
         const half fg = saturate((vd_p.z - vd.z) * 20 * rcp_d_p);
+#endif
 
         // Length of the velocity vector
         const half l_v = lerp(l_v_bg, length(vd.xy), fg);

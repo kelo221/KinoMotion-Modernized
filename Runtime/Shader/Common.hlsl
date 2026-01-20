@@ -70,6 +70,7 @@ half _LoopCount;
 float _FilterCameraMotion;
 float4x4 _InvVP;
 float4x4 _PrevVP;
+float4x4 _CameraInvProj;  // Inverse projection for view-space reconstruction
 
 // History buffer for frame blending
 sampler2D _History1LumaTex;

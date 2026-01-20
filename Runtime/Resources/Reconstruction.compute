@@ -26,6 +26,23 @@ float _RcpMaxBlurRadius;
 // These MUST be manually set from C# via SetComputeVectorParam
 float4 _CustomScreenParams;  // (width, height, 1/width, 1/height)
 float _CustomTime;           // Time.time for noise
+float _ReversedZ;            // 1.0 if reversed-Z buffer, 0.0 otherwise
+
+// Camera motion filtering uniforms
+float _FilterCameraMotion;
+float4x4 _InvVP;
+float4x4 _PrevVP;
+float4x4 _CameraInvProj;
+float4 _ZBufferParams;       // For LinearEyeDepth calculation
+
+// Depth texture for camera motion filtering
+Texture2D<float> _CameraDepthTexture;
+
+// LinearEyeDepth for compute shader (since we can't include UnityCG.cginc)
+float LinearEyeDepth(float z)
+{
+    return 1.0 / (_ZBufferParams.z * z + _ZBufferParams.w);
+}
 
 // Constants
 #define UNITY_PI 3.14159265359
@@ -55,8 +72,37 @@ float2 JitterTile(float2 uv)
 
 float3 SampleVelocity(float2 uv)
 {
+    // 1. Get the total velocity (Camera + Object) from packed texture
     float4 v = _VelocityTex.SampleLevel(sampler_PointClamp, uv, 0);
-    return float3((v.xy * 2 - 1) * _MaxBlurRadius, v.z);
+    float2 totalVelocity = (v.xy * 2 - 1) * _MaxBlurRadius;
+    
+    // 2. Filter out camera motion if enabled
+    if (_FilterCameraMotion > 0.5)
+    {
+        // Sample raw depth and convert to linear eye depth
+        float rawDepth = _CameraDepthTexture.SampleLevel(sampler_PointClamp, uv, 0);
+        float linearDepth = LinearEyeDepth(rawDepth);
+        
+        // Reconstruct view-space position using inverse projection
+        float2 ndc = uv * 2.0 - 1.0;
+        float4 viewPos = mul(_CameraInvProj, float4(ndc, rawDepth, 1.0));
+        viewPos.xyz /= viewPos.w;
+        
+        // Transform to world space using inverse view-projection
+        float4 worldPos = mul(_InvVP, float4(ndc, rawDepth, 1.0));
+        worldPos.xyz /= worldPos.w;
+        
+        // Project using previous frame's VP matrix
+        float4 prevClipPos = mul(_PrevVP, worldPos);
+        float2 prevNDC = prevClipPos.xy / prevClipPos.w;
+        float2 prevUV = prevNDC * 0.5 + 0.5;
+        
+        // Camera-induced velocity in pixels
+        float2 cameraVelocity = (uv - prevUV) * _CustomScreenParams.xy;
+        totalVelocity -= cameraVelocity;
+    }
+    
+    return float3(totalVelocity, v.z);
 }
 
 [numthreads(8, 8, 1)]
@@ -135,8 +181,10 @@ void CSReconstruction(uint3 id : SV_DispatchThreadID)
         // Velocity/Depth sample
         float3 vd = SampleVelocity(uv1);
         
-        // Background/Foreground separation
-        float fg = saturate((vd_p.z - vd.z) * 20 * rcp_d_p);
+        // Background/Foreground separation (handle reversed-Z via runtime uniform)
+        float fg = (_ReversedZ > 0.5) 
+            ? saturate((vd.z - vd_p.z) * 20 * rcp_d_p)
+            : saturate((vd_p.z - vd.z) * 20 * rcp_d_p);
         
         // Length of the velocity vector
         float l_v = lerp(l_v_bg, length(vd.xy), fg);

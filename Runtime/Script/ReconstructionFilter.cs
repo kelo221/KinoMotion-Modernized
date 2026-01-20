@@ -96,13 +96,15 @@ namespace Kino
             /// <param name="filterCameraMotion">If true, subtract camera motion from velocity</param>
             /// <param name="invVP">Current frame's inverse view-projection matrix</param>
             /// <param name="prevVP">Previous frame's view-projection matrix</param>
-            public void SetCameraFilter(bool filterCameraMotion, Matrix4x4 invVP, Matrix4x4 prevVP)
+            /// <param name="invProj">Current frame's inverse projection matrix</param>
+            public void SetCameraFilter(bool filterCameraMotion, Matrix4x4 invVP, Matrix4x4 prevVP, Matrix4x4 invProj)
             {
                 if (_material == null) return;
                 
                 _material.SetFloat("_FilterCameraMotion", filterCameraMotion ? 1.0f : 0.0f);
                 _material.SetMatrix("_InvVP", invVP);
                 _material.SetMatrix("_PrevVP", prevVP);
+                _material.SetMatrix("_CameraInvProj", invProj);
             }
 
             public void ProcessImage(

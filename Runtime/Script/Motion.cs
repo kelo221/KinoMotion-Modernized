@@ -92,7 +92,7 @@ namespace Kino
         [SerializeField, HideInInspector] 
         Shader _frameBlendingShader;
         
-        [SerializeField, Tooltip("Compute shader for async reconstruction (DX12/Vulkan only)")]
+        [SerializeField, Tooltip("Optional: Compute shader for async reconstruction. Auto-loaded from Resources if not assigned.")]
         ComputeShader _reconstructionCS;
 
         [SerializeField, Tooltip("Shader variants for PSO pre-cooking (DX12/Vulkan - eliminates hitches)")]
@@ -163,6 +163,14 @@ namespace Kino
             
             // Create persistent CommandBuffer (GC-free)
             _cmd = new CommandBuffer { name = "KinoMotion Hybrid" };
+            
+            // Auto-load compute shader from Resources if not manually assigned
+            if (_reconstructionCS == null)
+            {
+                _reconstructionCS = Resources.Load<ComputeShader>("Reconstruction");
+                if (_reconstructionCS != null && _debugLogging)
+                    UnityEngine.Debug.Log("[KinoMotion] Compute shader auto-loaded from Resources");
+            }
             
             // Check async compute support (requires GraphicsFence support)
             _supportsAsyncCompute = SystemInfo.supportsAsyncCompute && 
@@ -274,8 +282,9 @@ namespace Kino
             var cam = GetComponent<Camera>();
             var vp = cam.projectionMatrix * cam.worldToCameraMatrix;
             var invVP = vp.inverse;
+            var invProj = cam.projectionMatrix.inverse;
             var prevVP = cam.previousViewProjectionMatrix;
-            _reconstructionFilter.SetCameraFilter(_filterCameraMotion, invVP, prevVP);
+            _reconstructionFilter.SetCameraFilter(_filterCameraMotion, invVP, prevVP, invProj);
 
             // --- ASYNC COMPUTE PATH (Integrated) ---
             if (_supportsAsyncCompute && _shutterAngle > 0)
@@ -339,11 +348,33 @@ namespace Kino
                 _asyncCmd.SetComputeFloatParam(_reconstructionCS, "_MaxBlurRadius", maxBlurPixels);
                 _asyncCmd.SetComputeFloatParam(_reconstructionCS, "_RcpMaxBlurRadius", 1.0f / maxBlurPixels);
                 
+                // Reversed-Z and camera motion filter uniforms
+                _asyncCmd.SetComputeFloatParam(_reconstructionCS, "_ReversedZ", SystemInfo.usesReversedZBuffer ? 1f : 0f);
+                _asyncCmd.SetComputeFloatParam(_reconstructionCS, "_FilterCameraMotion", _filterCameraMotion ? 1f : 0f);
+                _asyncCmd.SetComputeMatrixParam(_reconstructionCS, "_InvVP", invVP);
+                _asyncCmd.SetComputeMatrixParam(_reconstructionCS, "_PrevVP", prevVP);
+                _asyncCmd.SetComputeMatrixParam(_reconstructionCS, "_CameraInvProj", invProj);
+                
+                // ZBufferParams for LinearEyeDepth calculation in compute shader
+                // Unity's _ZBufferParams: x = 1-far/near, y = far/near, z = x/far, w = y/far
+                float n = cam.nearClipPlane;
+                float f = cam.farClipPlane;
+                Vector4 zBufferParams;
+                if (SystemInfo.usesReversedZBuffer)
+                    zBufferParams = new Vector4(-1 + f/n, 1, (-1 + f/n)/f, 1/f);
+                else
+                    zBufferParams = new Vector4(1 - f/n, f/n, (1 - f/n)/f, (f/n)/f);
+                _asyncCmd.SetComputeVectorParam(_reconstructionCS, "_ZBufferParams", zBufferParams);
+                
                 // Bind textures
                 _asyncCmd.SetComputeTextureParam(_reconstructionCS, kernel, "_Source", _asyncSourceRT);
                 _asyncCmd.SetComputeTextureParam(_reconstructionCS, kernel, "_Result", _asyncResultRT);
                 _asyncCmd.SetComputeTextureParam(_reconstructionCS, kernel, "_VelocityTex", _velocityRT);
                 _asyncCmd.SetComputeTextureParam(_reconstructionCS, kernel, "_NeighborMaxTex", _neighborMaxRT);
+                
+                // Depth texture for camera motion filtering
+                _asyncCmd.SetComputeTextureParam(_reconstructionCS, kernel, "_CameraDepthTexture", 
+                    Shader.GetGlobalTexture("_CameraDepthTexture"));
 
                 _asyncCmd.DispatchCompute(_reconstructionCS, kernel, 
                                          (source.width + 7) / 8, (source.height + 7) / 8, 1);

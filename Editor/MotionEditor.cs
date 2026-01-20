@@ -97,11 +97,39 @@ namespace Kino
             
             EditorGUILayout.PropertyField(_shaderVariants, new GUIContent("Shader Variants", "PSO pre-cooking for DX12/Vulkan - eliminates first-frame hitches"));
             
-            EditorGUILayout.PropertyField(_useAsyncCompute, new GUIContent("Use Async Compute", "EXPERIMENTAL: Enable async compute for 20-30% GPU boost (DX12/Vulkan only)"));
+            EditorGUILayout.PropertyField(_useAsyncCompute, new GUIContent("Use Async Compute", "Enable async compute for 20-30% GPU boost (DX12/Vulkan only)"));
             
             if (_useAsyncCompute.boolValue)
             {
-                EditorGUILayout.PropertyField(_reconstructionCS, new GUIContent("Reconstruction CS", "Compute shader for async reconstruction"));
+                EditorGUI.indentLevel++;
+                
+                // Show status instead of confusing "None" field
+                bool hasComputeShader = _reconstructionCS.objectReferenceValue != null || 
+                                       Resources.Load<ComputeShader>("Reconstruction") != null;
+                bool platformSupported = SystemInfo.supportsAsyncCompute && SystemInfo.supportsGraphicsFence;
+                
+                string status;
+                MessageType messageType;
+                
+                if (!platformSupported)
+                {
+                    status = "Platform does not support async compute. Using fragment shader.";
+                    messageType = MessageType.Info;
+                }
+                else if (hasComputeShader)
+                {
+                    status = "✓ Compute shader ready (auto-loaded from Resources)";
+                    messageType = MessageType.None;
+                }
+                else
+                {
+                    status = "Compute shader not found in Resources folder.";
+                    messageType = MessageType.Warning;
+                }
+                
+                EditorGUILayout.HelpBox(status, messageType);
+                
+                EditorGUI.indentLevel--;
             }
             
             EditorGUILayout.Space();

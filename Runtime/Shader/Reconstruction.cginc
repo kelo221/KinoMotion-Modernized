@@ -113,8 +113,12 @@ half4 frag_Reconstruction(v2f_multitex i) : SV_Target
         // Velocity/Depth sample
         const half3 vd = SampleVelocity(uv1);
 
-        // Background/Foreground separation
+        // Background/Foreground separation (handle reversed-Z)
+#if UNITY_REVERSED_Z
+        const half fg = saturate((vd.z - vd_p.z) * 20 * rcp_d_p);
+#else
         const half fg = saturate((vd_p.z - vd.z) * 20 * rcp_d_p);
+#endif
 
         // Length of the velocity vector
         const half l_v = lerp(l_v_bg, length(vd.xy), fg);
